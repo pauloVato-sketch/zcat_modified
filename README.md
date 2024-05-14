@@ -23,3 +23,4 @@ NOTE: In this implementation, the generation of Pareto optimal solutions
 Contact me if you need Pareto optimal solutions for more than 15 objectives 
 in these types of problems.
 
+Versão modificada para trabalhar com arquivo de entrada e saída*

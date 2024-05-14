@@ -19,14 +19,22 @@
 #include "zcat-benchmark.h"
 #include "zcat-rnd-opt-sol.h"
 #include <stdbool.h>
+
 #define MAX_IND 1000
 #define MAX_OBJ 15
 double mat[MAX_IND][MAX_OBJ];
+
 struct INPUT_DATA{
 	int n_ind;
 	int n_obj;
+	int n_var;
 	short int zcat_num;
+	bool complicated_flag;
+	short int level;
+	bool bias_flag;
+	bool imbalance_flag;
 };
+
 void print_file_header(FILE *file, char *mop, int nobj, int nvar)
 {
 	int j;
@@ -69,50 +77,75 @@ struct INPUT_DATA read_file(char* filename){
 		exit(1);
 	}
 	read = getline(&linha, &len, fp);
+	// Linha de flags
 	if (first_line_num == true && read != -1){
+		// N_ind
 		split = strtok(linha, " ");
 		data.n_ind = atoi(split);
+		// N_var
+		split = strtok(NULL, " ");
+		data.n_var = atoi(split);
+		// N_obj
 		split = strtok(NULL, " ");
 		data.n_obj = atoi(split);
+		// Complicated
+		split = strtok(NULL, " ");
+		data.complicated_flag = atoi(split);
+		// Level
+		split = strtok(NULL, " ");
+		data.level = atoi(split);
+		// Bias
+		split = strtok(NULL, " ");
+		data.bias_flag = atoi(split);
+		// Imbalance
+		split = strtok(NULL, " ");
+		data.imbalance_flag = atoi(split);
+		// Zcat_func
 		split = strtok(NULL, " \n");
 		data.zcat_num = atoi(split);
 
-		printf("N individuos = %d, N objetivos = %d, funcao %d\n", data.n_ind, data.n_obj, data.zcat_num);
+		printf("\nEntrada:===================\n");
+		printf("Qtd individuos = %d, N variaveis decisão= %d, N objetivos = %d, Complicated_PS = %d\n", data.n_ind, data.n_var, data.n_obj, data.complicated_flag);
+		printf("Level = %d, Bias = %d, Imbalance = %d, ZCATFunction Number = %d\n", data.level, data.bias_flag, data.imbalance_flag, data.zcat_num);
 		first_line_num = false; 
 	}
 	bool begin = true;
 	for( int jj =0; jj < data.n_ind; jj++){
-		for(int ii=0; ii<data.n_obj;ii++){
+		for(int ii=0; ii<data.n_var;ii++){
 			if(fscanf(fp, "%lf", &mat[jj][ii] ) == EOF)
 				exit(1);
 		}
 	}
 	fclose(fp);
 	for( int jj =0; jj < data.n_ind; jj++){
-		for(int ii=0; ii<data.n_obj;ii++){
-			printf("%.10lf",mat[jj][ii]);
+		for(int ii=0; ii<data.n_var;ii++){
+			printf("%.10lf ",mat[jj][ii]);
 		}
 		printf("\n");
 	}
 	return data;
 }
 
+// Passar NVar distinto e flags
+// Escrever arquivo de saida
 int main(int argc, char **argv){
 	for(int a = 0; a < MAX_INPUT; a++){
 		for(int b = 0; b < MAX_OBJ; b++){
 			mat[a][b] = 0;
 		}
 	}
+
 	printf("\n Nome do arquivo = %s\n", argv[1]);
+
 	struct INPUT_DATA data = read_file(argv[1]);
 	int i;
 	int nobj = data.n_obj; /* number of objectives */
-	int nvar = nobj; /* standard decision variables */
+	int nvar = data.n_var; /* standard decision variables */
 
-	int Level = 1; /* Level of the problem {1,..,6} */
-	int Bias_flag = 0; /* Bias flag {0,1}  (True: 1, False: 0)*/
-	int Complicated_PS_flag = 1; /* Complicated PS flag {0,1} (True: 1, False: 0) */
-	int Imbalance_flag = 0; /* Imbalance flag {0,1}  (True: 1, False: 0)*/
+	int Level = data.level; /* Level of the problem {1,..,6} */
+	int Bias_flag = data.bias_flag; /* Bias flag {0,1}  (True: 1, False: 0)*/
+	int Complicated_PS_flag = data.complicated_flag; /* Complicated PS flag {0,1} (True: 1, False: 0) */
+	int Imbalance_flag = data.imbalance_flag; /* Imbalance flag {0,1}  (True: 1, False: 0)*/
 
 	double *LB = NULL, *UB = NULL; /* Pointer to the bounds of the problem */
 	double *x, *f;	/* Decision variables (x) and objectives (f)*/
@@ -138,86 +171,387 @@ int main(int argc, char **argv){
 	print_double_vector(LB, nvar);
 	printf("UB: ");
 	print_double_vector(UB, nvar); printf("\n");
-	int index = 0;
-	/* Example 1: Generating and evaluating a single random solution */
-	for (i = 0; i < nvar; ++i) /* Generating random solution */
-	{
-		x[i] = mat[index][i];
-	}
+
+	FILE *output_fp = fopen("output.optm", "w+");
+
 	switch (data.zcat_num)
 	{
-	case 1:
-		printf("CALLING ZCAT1\n");ZCAT1(x, f, NULL, NULL); /* Evaluating random solution */
+	case 1:{
+		printf("CALLING ZCAT1\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat1], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT1(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
 		break;
-	case 2:
-		printf("CALL ZCAT2\n");ZCAT2(x, f, NULL, NULL); /* Evaluating random solution */
+		}
+	case 2:{
+		printf("CALLING ZCAT2\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat2], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT2(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
 		break;
+		}
 	case 3:
-		ZCAT3(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT3\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat3], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT3(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 4:
-		ZCAT4(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT4\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat4], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT4(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 5:
-		ZCAT5(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT5\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat5], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT5(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 6:
-		ZCAT6(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT6\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat6], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT6(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 7:
-		ZCAT7(x, f, NULL, NULL); /* Evaluating random solution */
+	{
+		printf("CALLING ZCAT7\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat7], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT7(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 8:
-		ZCAT8(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT8\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat8], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT8(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 9:
-		ZCAT9(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT9\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat9], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT9(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 10:
-		ZCAT10(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT10\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat10], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT10(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 11:
-		ZCAT11(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT11\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat11], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT11(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 12:
-		ZCAT12(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT12\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat12], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT12(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 13:
-		ZCAT13(x, f, NULL, NULL); /* Evaluating random solution */
+		{
+		printf("CALLING ZCAT13\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat13], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT13(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	break;
 	case 14:
-		ZCAT14(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT14\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat14], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT14(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	case 15:
-		ZCAT15(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT15\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat15], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT15(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	case 16:
-		ZCAT16(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT16\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat16], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT16(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	case 17:
-		ZCAT17(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT17\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat17], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT17(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}
 	case 18:
-		ZCAT18(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT18\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat18], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT18(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	case 19:
-		ZCAT19(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT19\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat19], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT19(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	case 20:
-		ZCAT20(x, f, NULL, NULL); /* Evaluating random solution */
-	break;
+{
+		printf("CALLING ZCAT20\n");
+		int index = 0;
+		print_file_header(output_fp, ZCAT_MOP_STR[zcat20], nobj, nvar);
+
+		/* Example 1: Generating and evaluating a single random solution */
+		while(index < data.n_ind){
+			for (i = 0; i < nvar; ++i){
+				x[i] = mat[index][i];
+			}
+			ZCAT20(x, f, NULL, NULL);
+			print_file_solution(output_fp, x, f, nobj, nvar);
+			index++;
+		}
+		
+		break;
+		}	
 	default:
 		break;
 	}
-	
-	printf("===================\n");
-	printf("Example 0\n");
-	printf("===================\n");
-	printf("Decision variables: \n");
-	print_double_vector(x, nvar);
-	printf("Objective values: \n");
-	print_double_vector(f, nobj);
-	printf("===================\n");
+	fclose(pf);
+	fclose(output_fp);
+
     
+
     return 0;
 }
