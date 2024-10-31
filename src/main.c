@@ -21,7 +21,7 @@
 #include <stdbool.h>
 
 #define MAX_IND 1000
-#define MAX_OBJ 15
+#define MAX_OBJ 1000
 double mat[MAX_IND][MAX_OBJ];
 
 struct INPUT_DATA{
@@ -29,9 +29,9 @@ struct INPUT_DATA{
 	int n_obj;
 	int n_var;
 	short int zcat_num;
-	bool complicated_flag;
 	short int level;
 	bool bias_flag;
+	bool complicated_flag;
 	bool imbalance_flag;
 };
 
@@ -58,11 +58,53 @@ void print_file_solution(FILE *file, double *x, double *f, int nobj, int nvar)
 	fprintf(file, "\n");
 	return;
 }
-/* Estrutura do arquivo
-num_individuos=linha num_obj=colunas func_zcat_num
-...
-*/
-struct INPUT_DATA read_file(char* filename){
+
+ssize_t custom_getline(char **lineptr, size_t *n, FILE *stream) {
+    if (lineptr == NULL || stream == NULL) {
+        return -1; // Error: invalid arguments
+    }
+
+    if (*lineptr == NULL) {
+        *n = 128; // Set initial size
+        *lineptr = malloc(*n);
+        if (*lineptr == NULL) {
+            return -1; // Error: memory allocation failed
+        }
+    }
+
+    size_t pos = 0;
+    int c;
+
+    while (1) {
+        c = fgetc(stream);
+        if (c == EOF) {
+            if (pos == 0) {
+                return -1; // No input
+            }
+            break; // End of file reached
+        }
+
+        if (pos >= *n - 1) { // Need more space
+            *n *= 2; // Double the size
+            char *new_ptr = realloc(*lineptr, *n);
+            if (new_ptr == NULL) {
+                return -1; // Error: memory allocation failed
+            }
+            *lineptr = new_ptr;
+        }
+
+        (*lineptr)[pos++] = (char)c;
+
+        if (c == '\n') {
+            break; // End of line reached
+        }
+    }
+
+    (*lineptr)[pos] = '\0'; // Null-terminate the string
+    return pos; // Return the number of characters read
+}
+
+struct INPUT_DATA read_config_file(char* filename){
 	FILE *fp;
 	char* linha = NULL;
 	char* split = NULL;
@@ -76,7 +118,7 @@ struct INPUT_DATA read_file(char* filename){
 		printf("Leitura do arquivo falhou!");
 		exit(1);
 	}
-	read = getline(&linha, &len, fp);
+	read = custom_getline(&linha, &len, fp);
 	// Linha de flags
 	if (first_line_num == true && read != -1){
 		// N_ind
@@ -88,15 +130,15 @@ struct INPUT_DATA read_file(char* filename){
 		// N_obj
 		split = strtok(NULL, " ");
 		data.n_obj = atoi(split);
-		// Complicated
-		split = strtok(NULL, " ");
-		data.complicated_flag = atoi(split);
 		// Level
 		split = strtok(NULL, " ");
 		data.level = atoi(split);
 		// Bias
 		split = strtok(NULL, " ");
 		data.bias_flag = atoi(split);
+		// Complicated
+		split = strtok(NULL, " ");
+		data.complicated_flag = atoi(split);
 		// Imbalance
 		split = strtok(NULL, " ");
 		data.imbalance_flag = atoi(split);
@@ -110,26 +152,16 @@ struct INPUT_DATA read_file(char* filename){
 		first_line_num = false; 
 	}
 	bool begin = true;
-	for( int jj =0; jj < data.n_ind; jj++){
-		for(int ii=0; ii<data.n_var;ii++){
-			if(fscanf(fp, "%lf", &mat[jj][ii] ) == EOF)
-				exit(1);
-		}
-	}
+
 	fclose(fp);
-	for( int jj =0; jj < data.n_ind; jj++){
-		for(int ii=0; ii<data.n_var;ii++){
-			printf("%.10lf ",mat[jj][ii]);
-		}
-		printf("\n");
-	}
+
 	return data;
 }
 
 // Passar NVar distinto e flags
 // Escrever arquivo de saida
 int main(int argc, char **argv){
-	for(int a = 0; a < MAX_INPUT; a++){
+	for(int a = 0; a < MAX_IND; a++){
 		for(int b = 0; b < MAX_OBJ; b++){
 			mat[a][b] = 0;
 		}
@@ -137,8 +169,18 @@ int main(int argc, char **argv){
 
 	printf("\n Nome do arquivo = %s\n", argv[1]);
 
-	struct INPUT_DATA data = read_file(argv[1]);
+	struct INPUT_DATA data = read_config_file(argv[1]);
 	int i;
+	printf("======================================================");
+	printf("Data of config: \n");
+	printf("	N_Obj: %d\n", data.n_obj);
+	printf("	N_Var: %d\n", data.n_var);
+	printf("	Level: %d\n", data.level);
+	printf("	Bias: %d\n", data.bias_flag);
+	printf("	Complicated: %d\n", data.complicated_flag);
+	printf("	Imbalance: %d\n", data.imbalance_flag);
+
+	printf("======================================================");
 	int nobj = data.n_obj; /* number of objectives */
 	int nvar = data.n_var; /* standard decision variables */
 
@@ -150,7 +192,7 @@ int main(int argc, char **argv){
 	double *LB = NULL, *UB = NULL; /* Pointer to the bounds of the problem */
 	double *x, *f;	/* Decision variables (x) and objectives (f)*/
 
-	FILE *pf;
+	FILE *pf = fopen("input.txt", "r");
 	int max_solutions;
 	int mop;
 	char fname[1024];
@@ -159,7 +201,12 @@ int main(int argc, char **argv){
     
     /* seed for random numbers */
 	srand(time(NULL));
-
+		for( int jj =0; jj < data.n_ind; jj++){
+		for(int ii=0; ii<data.n_var;ii++){
+			if(fscanf(pf, "%lf", &mat[jj][ii] ) == EOF)
+				exit(1);
+		}
+	}
 	/* Configuring ZCAT benchmark. LB and UB are pointers to the bounds in the ZCAT structures */
 	zcat_set(nvar, nobj, Level, Bias_flag, Complicated_PS_flag, Imbalance_flag, &LB, &UB);
     
@@ -172,7 +219,7 @@ int main(int argc, char **argv){
 	printf("UB: ");
 	print_double_vector(UB, nvar); printf("\n");
 
-	FILE *output_fp = fopen("output.optm", "w+");
+	FILE *output_fp = fopen("output.txt", "w+");
 
 	switch (data.zcat_num)
 	{
