@@ -23,4 +23,4 @@ NOTE: In this implementation, the generation of Pareto optimal solutions
 Contact me if you need Pareto optimal solutions for more than 15 objectives 
 in these types of problems.
 
-Versão modificada para trabalhar com arquivo de entrada e saída*
+Slightly modified ZCAT suite of problems, so that the user can use one file for the flags, one file for the inputs and the output (objectives) goes to one file. The idea is to support professor Denis E. C. Vargas from CEFET-MG and any other researchers that need a middleware solution to using ZCAT in MATLAB. (I plan on doing an implementation for PlatEMO in the near future, so that this maneuver is not needed anymore.) 
